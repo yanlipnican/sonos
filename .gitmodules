@@ -1,0 +1,3 @@
+[submodule "sonos-codegen/sonos-api-docs"]
+	path = sonos-codegen/sonos-api-docs
+	url = https://github.com/svrooij/sonos-api-docs.git
