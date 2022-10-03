@@ -25,7 +25,7 @@ fn main() -> async_std::io::Result<()> {
                 pin_mut!(stream);
 
                 while let Some(device) = stream.next().await {
-                    println!("Device: \n{}", device?);
+                    // println!("Device: \n{}", device?);
                 }
 
                 Ok(())
@@ -84,9 +84,63 @@ mod ssdp {
                     Err(err) => { yield Err(err); break },
                 };
 
+                let response = Response::from_fixed_bytes(buf).unwrap();
+
+                println!("{:?}", response);
+
                 yield Ok(String::from(std::str::from_utf8(&buf[..read]).unwrap()));
             }
         })
     }
 
+    // HTTP/1.1 200 OK
+    // Location: http://10.69.10.148:1120/
+    // Cache-Control: max-age=1800
+    // Server: Linux/i686 UPnP/1,0 DLNADOC/1.50 LGE WebOS TV/Version 0.9
+    // EXT: 
+    // USN: uuid:aaa4ea3d-fda6-ca82-001a-d060ed0f6ff1::urn:schemas-upnp-org:device:MediaRenderer:1
+    // ST: urn:schemas-upnp-org:device:MediaRenderer:1
+    // Date: Mon, 03 Oct 2022 21:15:24 GMT
+    // DLNADeviceName.lge.com: %5bLG%5d%20webOS%20TV%20OLED65B9SLA
+    #[derive(Debug)]
+    struct Response<'a> {
+        buf: [u8; 2048],
+        st: &'a str,
+        location: &'a str,
+        usn: &'a str,
+        server: &'a str,
+    }
+
+    impl<'a> Response<'a> {
+        fn from_fixed_bytes(buf: [u8; 2048]) -> core::result::Result<Self, httparse::Error> {
+            let mut response = Self {
+                buf,
+                location: "",
+                usn: "",
+                st: "",
+                server: "",
+            };
+
+            let mut headers = [httparse::EMPTY_HEADER; 16];
+            let mut res = httparse::Response::new(&mut headers[..]);
+
+            res.parse(&response.buf)?;
+
+            if res.code != Some(200) {
+                return Err(httparse::Error::Status);
+            }
+
+            for header in res.headers {
+                match header.name {
+                    "LOCATION" => response.location = core::str::from_utf8(header.value).unwrap(),
+                    "USN" => response.usn = core::str::from_utf8(header.value).unwrap(),
+                    "ST" => response.st = core::str::from_utf8(header.value).unwrap(),
+                    "SERVER" => response.server = core::str::from_utf8(header.value).unwrap(),
+                    _ => ()
+                };
+            }
+
+            Ok(response)
+        }
+    }
 }
